@@ -11,7 +11,7 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 - Uses OpenAI for the LLM and embedding model.
 - Builds a LlamaIndex `VectorStoreIndex`.
 - Uses hybrid retrieval with vector search and local BM25-style keyword search.
-- Saves the index to a local persistence directory.
+- Saves the vector index, chunked nodes, and BM25 token statistics locally.
 - Reuses the saved index on later runs.
 - Keeps chat history during a terminal session for follow-up questions.
 - Optionally prints source chunks, metadata, and similarity scores for debugging.
@@ -47,7 +47,7 @@ Path to the PDF file that LlamaIndex should read. Relative paths are resolved fr
 
 `PERSIST_DIR`
 
-Directory where the generated LlamaIndex storage files are saved. Keeping this persisted means the index can be loaded again instead of rebuilt every time.
+Directory where generated storage files are saved. The app stores the vector index, chunked nodes, and BM25 keyword statistics there so they can be loaded again instead of rebuilt every time.
 
 `DEBUG`
 

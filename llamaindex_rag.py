@@ -40,6 +40,8 @@ RETRIEVAL_TOP_K = get_env_int(
     get_env_int(ENV_VALUES, "SIMILARITY_TOP_K", 10),
 )
 LLM_CONTEXT_TOP_K = get_env_int(ENV_VALUES, "LLM_CONTEXT_TOP_K", 4)
+LLM_MODEL = "gpt-4.1-mini"
+EMBEDDING_MODEL = "text-embedding-3-small"
 
 CONTEXT_PROMPT = PromptTemplate(
     """
@@ -71,12 +73,12 @@ def main():
         )
 
     Settings.llm = OpenAI(
-        model="gpt-4.1-mini",
+        model=LLM_MODEL,
         temperature=0.1,
     )
 
     Settings.embed_model = OpenAIEmbedding(
-        model="text-embedding-3-small",
+        model=EMBEDDING_MODEL,
     )
 
     Settings.node_parser = SentenceSplitter(
@@ -88,11 +90,16 @@ def main():
         base_dir=BASE_DIR,
         pdf_path=PDF_PATH,
         persist_dir=PERSIST_DIR,
+        index_config={
+            "chunk_size": CHUNK_SIZE,
+            "chunk_overlap": CHUNK_OVERLAP,
+            "embedding_model": EMBEDDING_MODEL,
+        },
     )
 
     chat_engine = build_hybrid_chat_engine(
         index=index,
-        pdf_path=PDF_PATH,
+        persist_dir=PERSIST_DIR,
         retrieval_top_k=RETRIEVAL_TOP_K,
         llm_context_top_k=LLM_CONTEXT_TOP_K,
         context_prompt=CONTEXT_PROMPT,
