@@ -40,6 +40,9 @@ Answer the question using only the provided context.
 You may make reasonable inferences if they are directly supported by the context.
 Do not introduce information that is not supported by the context.
 
+When possible, cite the source page or source metadata for the answer.
+Use short citations like: [page 12]
+
 If the answer cannot be determined from the context, say:
 "I cannot find that information in the provided documents."
 
@@ -108,12 +111,13 @@ def main():
         similarity_top_k=5
     )
     query_engine.update_prompts(
-    {
-        "response_synthesizer:text_qa_template": QA_PROMPT
-    }
-)
+        {
+            "response_synthesizer:text_qa_template": QA_PROMPT
+        }
+    )
 
     while True:
+        print(f"{Fore.CYAN}" + "_" * 50)
         question = input("\nQuestion: ")
 
         if question.lower() in ["exit", "quit"]:
@@ -125,6 +129,20 @@ def main():
 
         print(f"{Fore.GREEN}Answer:")
         print(response)
+
+        print(f"{Fore.CYAN}\nSources used:")
+        for i, source_node in enumerate(response.source_nodes, start=1):
+            metadata = source_node.metadata
+
+            page = (
+                metadata.get("page_label")
+                or metadata.get("page")
+                or "unknown"
+            )
+
+            file_name = metadata.get("file_name", "unknown file")
+
+            print(f"[{i}] {file_name}, page {page}, score {source_node.score:.4f}")
 
 
 if __name__ == "__main__":
