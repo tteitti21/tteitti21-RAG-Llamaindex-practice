@@ -65,6 +65,29 @@ Answer:
 """
 )
 
+CONDENSE_PROMPT = PromptTemplate(
+    """
+Given the conversation history and a follow-up question, rewrite the follow-up
+question into a standalone question only when it clearly depends on the chat
+history.
+
+If the follow-up question is already understandable by itself, or if it appears
+to introduce a new topic, return the follow-up question unchanged.
+
+Preserve specific keywords, names, table references, and technical terms from
+the follow-up question. Do not add topic details from chat history unless they
+are required to resolve a pronoun or an elliptical phrase.
+
+Chat History:
+{chat_history}
+
+Follow-up question:
+{question}
+
+Standalone question:
+"""
+)
+
 def main():
     if not get_env_value(ENV_VALUES, "OPENAI_API_KEY"):
         raise ValueError(
@@ -103,6 +126,7 @@ def main():
         retrieval_top_k=RETRIEVAL_TOP_K,
         llm_context_top_k=LLM_CONTEXT_TOP_K,
         context_prompt=CONTEXT_PROMPT,
+        condense_prompt=CONDENSE_PROMPT,
     )
 
     while True:

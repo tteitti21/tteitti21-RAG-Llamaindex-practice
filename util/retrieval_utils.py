@@ -48,6 +48,7 @@ def build_hybrid_chat_engine(
     retrieval_top_k,
     llm_context_top_k,
     context_prompt,
+    condense_prompt=None,
 ):
     """Build a chat engine with memory and the same hybrid retriever."""
     # CondensePlusContextChatEngine rewrites follow-up questions using chat
@@ -63,6 +64,7 @@ def build_hybrid_chat_engine(
         retriever=hybrid_retriever,
         memory=ChatMemoryBuffer.from_defaults(),
         context_prompt=context_prompt,
+        condense_prompt=condense_prompt,
         verbose=False,
     )
 
