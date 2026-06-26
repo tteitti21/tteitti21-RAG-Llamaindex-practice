@@ -4,6 +4,8 @@ from collections import Counter
 
 from llama_index.core import QueryBundle, Settings
 from llama_index.core.base.base_retriever import BaseRetriever
+from llama_index.core.chat_engine import CondensePlusContextChatEngine
+from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
@@ -19,6 +21,44 @@ def build_hybrid_query_engine(
     qa_prompt,
 ):
     """Build a query engine that combines semantic and lexical retrieval."""
+    hybrid_retriever = build_hybrid_retriever(
+        index=index,
+        pdf_path=pdf_path,
+        retrieval_top_k=retrieval_top_k,
+        llm_context_top_k=llm_context_top_k,
+    )
+
+    return RetrieverQueryEngine.from_args(
+        retriever=hybrid_retriever,
+        text_qa_template=qa_prompt,
+    )
+
+
+def build_hybrid_chat_engine(
+    index,
+    pdf_path,
+    retrieval_top_k,
+    llm_context_top_k,
+    context_prompt,
+):
+    """Build a chat engine with memory and the same hybrid retriever."""
+    hybrid_retriever = build_hybrid_retriever(
+        index=index,
+        pdf_path=pdf_path,
+        retrieval_top_k=retrieval_top_k,
+        llm_context_top_k=llm_context_top_k,
+    )
+
+    return CondensePlusContextChatEngine.from_defaults(
+        retriever=hybrid_retriever,
+        memory=ChatMemoryBuffer.from_defaults(),
+        context_prompt=context_prompt,
+        verbose=False,
+    )
+
+
+def build_hybrid_retriever(index, pdf_path, retrieval_top_k, llm_context_top_k):
+    """Build the retriever shared by query and chat engines."""
     vector_retriever = TrackingRetriever(
         name="Semantic vector search",
         retriever=index.as_retriever(
@@ -33,7 +73,7 @@ def build_hybrid_query_engine(
         ),
     )
 
-    hybrid_retriever = DebugQueryFusionRetriever(
+    return DebugQueryFusionRetriever(
         retrievers=[vector_retriever, keyword_retriever],
         mode=FUSION_MODES.RECIPROCAL_RANK,
         similarity_top_k=llm_context_top_k,
@@ -42,11 +82,6 @@ def build_hybrid_query_engine(
         use_async=False,
         # Prefer semantic search slightly, while still letting exact keywords win.
         retriever_weights=[0.6, 0.4],
-    )
-
-    return RetrieverQueryEngine.from_args(
-        retriever=hybrid_retriever,
-        text_qa_template=qa_prompt,
     )
 
 

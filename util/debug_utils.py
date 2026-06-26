@@ -21,10 +21,13 @@ def print_debug_sources(response, debug_enabled, query_engine=None):
 
 def print_retrieval_debug(query_engine):
     """Print raw retriever rankings and final fused rankings when available."""
-    if not query_engine or not hasattr(query_engine, "retriever"):
+    if not query_engine:
         return
 
-    retriever = query_engine.retriever
+    retriever = get_debug_retriever(query_engine)
+
+    if not retriever:
+        return
 
     print(f"{Fore.CYAN}\nRetrieval debug:\n")
     for child_retriever in getattr(retriever, "_retrievers", []):
@@ -56,6 +59,14 @@ def print_ranked_nodes(title, nodes):
         print(f"[{i}] {source_info} {preview}")
 
     print()
+
+
+def get_debug_retriever(query_engine):
+    """Return the retriever from either a query engine or chat engine."""
+    if hasattr(query_engine, "retriever"):
+        return query_engine.retriever
+
+    return getattr(query_engine, "_retriever", None)
 
 
 def format_debug_node(node):

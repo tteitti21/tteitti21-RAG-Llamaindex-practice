@@ -18,7 +18,7 @@ from util.env_utils import (
     load_env_file,
 )
 from util.index_utils import load_or_create_index
-from util.retrieval_utils import build_hybrid_query_engine
+from util.retrieval_utils import build_hybrid_chat_engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -41,11 +41,11 @@ RETRIEVAL_TOP_K = get_env_int(
 )
 LLM_CONTEXT_TOP_K = get_env_int(ENV_VALUES, "LLM_CONTEXT_TOP_K", 4)
 
-QA_PROMPT = PromptTemplate(
+CONTEXT_PROMPT = PromptTemplate(
     """
 You are a document-based assistant.
 
-Answer the question using only the provided context.
+Answer the user's question using only the provided context and chat history.
 
 You may make reasonable inferences if they are directly supported by the context.
 Do not introduce information that is not supported by the context.
@@ -58,9 +58,6 @@ If the answer cannot be determined from the context, say:
 
 Context:
 {context_str}
-
-Question:
-{query_str}
 
 Answer:
 """
@@ -93,12 +90,12 @@ def main():
         persist_dir=PERSIST_DIR,
     )
 
-    query_engine = build_hybrid_query_engine(
+    chat_engine = build_hybrid_chat_engine(
         index=index,
         pdf_path=PDF_PATH,
         retrieval_top_k=RETRIEVAL_TOP_K,
         llm_context_top_k=LLM_CONTEXT_TOP_K,
-        qa_prompt=QA_PROMPT,
+        context_prompt=CONTEXT_PROMPT,
     )
 
     while True:
@@ -108,9 +105,9 @@ def main():
         if question.lower() in ["exit", "quit"]:
             break
 
-        response = query_engine.query(question)
+        response = chat_engine.chat(question)
 
-        print_debug_sources(response, DEBUG, query_engine)
+        print_debug_sources(response, DEBUG, chat_engine)
 
         print(f"{Fore.GREEN}Answer:")
         print(response)

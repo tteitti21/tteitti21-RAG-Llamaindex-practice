@@ -2,7 +2,7 @@
 
 This is a small practice project for learning how to build a basic Retrieval-Augmented Generation (RAG) workflow with LlamaIndex.
 
-The app loads a PDF document, creates a vector index from it, persists that index locally, and lets you ask questions about the document from the terminal.
+The app loads a PDF document, creates a vector index from it, persists that index locally, and lets you chat about the document from the terminal.
 
 ## What This Project Does
 
@@ -13,6 +13,7 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 - Uses hybrid retrieval with vector search and local BM25-style keyword search.
 - Saves the index to a local persistence directory.
 - Reuses the saved index on later runs.
+- Keeps chat history during a terminal session for follow-up questions.
 - Optionally prints source chunks, metadata, and similarity scores for debugging.
 
 ## Project Structure
