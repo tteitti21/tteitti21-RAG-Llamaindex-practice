@@ -3,3 +3,4 @@ llama-index-llms-openai
 pypdf
 colorama
 llama-index-embeddings-openai
+nltk

@@ -12,11 +12,13 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
 from llama_index.core.schema import NodeWithScore
+from nltk.stem.snowball import SnowballStemmer
 from util.index_utils import load_persisted_nodes
 
 
 BM25_INDEX_FILE_NAME = "bm25_index.json"
-BM25_INDEX_VERSION = "bm25-custom-v1"
+BM25_INDEX_VERSION = "bm25-finnish-snowball-v1"
+FINNISH_STEMMER = SnowballStemmer("finnish")
 
 
 def build_hybrid_query_engine(
@@ -319,14 +321,8 @@ def tokenize(text):
 
 
 def normalize_token(token):
-    """Apply light Finnish suffix stripping for better word-form matching."""
-    # This is a tiny stemmer, not a full Finnish morphology analyzer. It is
-    # enough to match cases like "koodirivimääristä" and "koodirivimäärä".
-    for suffix in FINNISH_SUFFIXES:
-        if token.endswith(suffix) and len(token) > len(suffix) + 3:
-            return token[: -len(suffix)]
-
-    return token
+    """Stem Finnish tokens with Snowball instead of manual suffix stripping."""
+    return FINNISH_STEMMER.stem(token)
 
 
 STOPWORDS = {
@@ -350,34 +346,3 @@ STOPWORDS = {
     "sanottiin",
     "sanottii",
 }
-
-FINNISH_SUFFIXES = [
-    "isissa",
-    "isissä",
-    "ista",
-    "istä",
-    "ssa",
-    "ssä",
-    "sta",
-    "stä",
-    "lla",
-    "llä",
-    "lle",
-    "ksi",
-    "kin",
-    "kaan",
-    "kään",
-    "een",
-    "den",
-    "ten",
-    "tta",
-    "ttä",
-    "ta",
-    "tä",
-    "na",
-    "nä",
-    "n",
-    "a",
-    "ä",
-    "t",
-]
