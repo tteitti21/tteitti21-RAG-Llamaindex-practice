@@ -14,6 +14,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from colorama import Fore, init
 from llama_index.core import PromptTemplate
+from llama_index.core.node_parser import SentenceSplitter
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -26,6 +27,9 @@ OPENAI_API_KEY = get_env_value(ENV_VALUES, "OPENAI_API_KEY")
 if OPENAI_API_KEY:
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 init(autoreset=True)  # Automatically resets style after every print
+
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
 
 QA_PROMPT = PromptTemplate(
     """
@@ -91,6 +95,11 @@ def main():
 
     Settings.embed_model = OpenAIEmbedding(
         model="text-embedding-3-small",
+    )
+
+    Settings.node_parser = SentenceSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
     )
 
     index = load_or_create_index()
