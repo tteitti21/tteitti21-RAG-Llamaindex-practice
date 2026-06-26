@@ -13,15 +13,21 @@ from util.pdf_utils import load_pdf_documents
 
 def build_hybrid_query_engine(index, pdf_path, similarity_top_k, qa_prompt):
     """Build a query engine that combines semantic and lexical retrieval."""
-    vector_retriever = index.as_retriever(
-        similarity_top_k=similarity_top_k
+    vector_retriever = TrackingRetriever(
+        name="Semantic vector search",
+        retriever=index.as_retriever(
+            similarity_top_k=similarity_top_k
+        ),
     )
-    keyword_retriever = build_keyword_retriever(
-        pdf_path=pdf_path,
-        similarity_top_k=similarity_top_k,
+    keyword_retriever = TrackingRetriever(
+        name="BM25 keyword search",
+        retriever=build_keyword_retriever(
+            pdf_path=pdf_path,
+            similarity_top_k=similarity_top_k,
+        ),
     )
 
-    hybrid_retriever = QueryFusionRetriever(
+    hybrid_retriever = DebugQueryFusionRetriever(
         retrievers=[vector_retriever, keyword_retriever],
         mode=FUSION_MODES.RECIPROCAL_RANK,
         similarity_top_k=similarity_top_k,
@@ -36,6 +42,57 @@ def build_hybrid_query_engine(index, pdf_path, similarity_top_k, qa_prompt):
         retriever=hybrid_retriever,
         text_qa_template=qa_prompt,
     )
+
+
+class TrackingRetriever(BaseRetriever):
+    """Retriever wrapper that stores the most recent result list for debugging."""
+
+    def __init__(self, name, retriever):
+        super().__init__()
+        self.name = name
+        self.retriever = retriever
+        self.last_results = []
+        self.last_debug_results = []
+
+    def _retrieve(self, query_bundle: QueryBundle):
+        """Delegate retrieval and remember the raw ranked results."""
+        self.last_results = self.retriever.retrieve(query_bundle)
+        self.last_debug_results = snapshot_results(self.last_results)
+
+        return self.last_results
+
+
+class DebugQueryFusionRetriever(QueryFusionRetriever):
+    """Query fusion retriever that stores the final fused ranking for debugging."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.last_fused_results = []
+        self.last_fused_debug_results = []
+
+    def _retrieve(self, query_bundle: QueryBundle):
+        """Delegate hybrid retrieval and remember the merged ranked results."""
+        self.last_fused_results = super()._retrieve(query_bundle)
+        self.last_fused_debug_results = snapshot_results(self.last_fused_results)
+
+        return self.last_fused_results
+
+
+def snapshot_results(nodes):
+    """Store result details before fusion mutates node scores in place."""
+    snapshots = []
+
+    for node_with_score in nodes:
+        metadata = node_with_score.metadata
+        snapshots.append(
+            {
+                "page": metadata.get("page_label") or metadata.get("page") or "unknown",
+                "score": node_with_score.score,
+                "preview": " ".join(node_with_score.node.get_content().split())[:180],
+            }
+        )
+
+    return snapshots
 
 
 def build_keyword_retriever(pdf_path, similarity_top_k):

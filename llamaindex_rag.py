@@ -104,7 +104,7 @@ def main():
 
         response = query_engine.query(question)
 
-        print_debug_sources(response, DEBUG)
+        print_debug_sources(response, DEBUG, query_engine)
 
         print(f"{Fore.GREEN}Answer:")
         print(response)
