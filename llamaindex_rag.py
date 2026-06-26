@@ -34,7 +34,12 @@ init(autoreset=True)  # Automatically resets style after every print
 
 CHUNK_SIZE = get_env_int(ENV_VALUES, "CHUNK_SIZE", 1000)
 CHUNK_OVERLAP = get_env_int(ENV_VALUES, "CHUNK_OVERLAP", 200)
-SIMILARITY_TOP_K = get_env_int(ENV_VALUES, "SIMILARITY_TOP_K", 10)
+RETRIEVAL_TOP_K = get_env_int(
+    ENV_VALUES,
+    "RETRIEVAL_TOP_K",
+    get_env_int(ENV_VALUES, "SIMILARITY_TOP_K", 10),
+)
+LLM_CONTEXT_TOP_K = get_env_int(ENV_VALUES, "LLM_CONTEXT_TOP_K", 4)
 
 QA_PROMPT = PromptTemplate(
     """
@@ -91,7 +96,8 @@ def main():
     query_engine = build_hybrid_query_engine(
         index=index,
         pdf_path=PDF_PATH,
-        similarity_top_k=SIMILARITY_TOP_K,
+        retrieval_top_k=RETRIEVAL_TOP_K,
+        llm_context_top_k=LLM_CONTEXT_TOP_K,
         qa_prompt=QA_PROMPT,
     )
 

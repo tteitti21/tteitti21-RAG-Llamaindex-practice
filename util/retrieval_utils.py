@@ -11,26 +11,32 @@ from llama_index.core.schema import NodeWithScore
 from util.pdf_utils import load_pdf_documents
 
 
-def build_hybrid_query_engine(index, pdf_path, similarity_top_k, qa_prompt):
+def build_hybrid_query_engine(
+    index,
+    pdf_path,
+    retrieval_top_k,
+    llm_context_top_k,
+    qa_prompt,
+):
     """Build a query engine that combines semantic and lexical retrieval."""
     vector_retriever = TrackingRetriever(
         name="Semantic vector search",
         retriever=index.as_retriever(
-            similarity_top_k=similarity_top_k
+            similarity_top_k=retrieval_top_k
         ),
     )
     keyword_retriever = TrackingRetriever(
         name="BM25 keyword search",
         retriever=build_keyword_retriever(
             pdf_path=pdf_path,
-            similarity_top_k=similarity_top_k,
+            similarity_top_k=retrieval_top_k,
         ),
     )
 
     hybrid_retriever = DebugQueryFusionRetriever(
         retrievers=[vector_retriever, keyword_retriever],
         mode=FUSION_MODES.RECIPROCAL_RANK,
-        similarity_top_k=similarity_top_k,
+        similarity_top_k=llm_context_top_k,
         # Keep this at one query to avoid extra LLM calls for query rewriting.
         num_queries=1,
         use_async=False,

@@ -60,6 +60,10 @@ Token target for each indexed text chunk. Changing this requires rebuilding the 
 
 Token overlap between neighboring chunks. Changing this requires rebuilding the persisted index.
 
-`SIMILARITY_TOP_K`
+`RETRIEVAL_TOP_K`
 
-Number of fused source chunks to send into answer generation. Raising this can help when the right page is ranked slightly below the first few matches.
+Number of candidate chunks each search method retrieves before fusion. Raising this can help when the right page is ranked slightly below the first few matches.
+
+`LLM_CONTEXT_TOP_K`
+
+Number of final fused chunks to send into answer generation.
