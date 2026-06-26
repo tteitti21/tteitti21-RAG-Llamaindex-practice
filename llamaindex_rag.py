@@ -13,6 +13,7 @@ from util.env_utils import get_env_bool, get_env_path, get_env_value, load_env_f
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from colorama import Fore, init
+from llama_index.core import PromptTemplate
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -25,6 +26,28 @@ OPENAI_API_KEY = get_env_value(ENV_VALUES, "OPENAI_API_KEY")
 if OPENAI_API_KEY:
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 init(autoreset=True)  # Automatically resets style after every print
+
+QA_PROMPT = PromptTemplate(
+    """
+You are a document-based assistant.
+
+Answer the question using only the provided context.
+
+You may make reasonable inferences if they are directly supported by the context.
+Do not introduce information that is not supported by the context.
+
+If the answer cannot be determined from the context, say:
+"I cannot find that information in the provided documents."
+
+Context:
+{context_str}
+
+Question:
+{query_str}
+
+Answer:
+"""
+)
 
 def load_or_create_index():
     if os.path.exists(PERSIST_DIR) and os.listdir(PERSIST_DIR):
@@ -75,6 +98,11 @@ def main():
     query_engine = index.as_query_engine(
         similarity_top_k=5
     )
+    query_engine.update_prompts(
+    {
+        "response_synthesizer:text_qa_template": QA_PROMPT
+    }
+)
 
     while True:
         question = input("\nQuestion: ")

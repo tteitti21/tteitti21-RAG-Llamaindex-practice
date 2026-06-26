@@ -6,7 +6,8 @@ def print_debug_sources(response, debug_enabled):
         return
 
     print(f"{Fore.CYAN}\nSources:\n")
-    for source_node in response.source_nodes:
+    for i, source_node in enumerate(response.source_nodes, start=1):
+        print(f"\n--- Source {i} ---")
         print(f"{Fore.YELLOW}Score:{Style.RESET_ALL}", source_node.score)
         print(f"{Fore.LIGHTMAGENTA_EX}Metadata:{Style.RESET_ALL}", source_node.metadata)
         print(
