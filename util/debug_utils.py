@@ -44,10 +44,12 @@ def print_retrieval_debug(query_engine):
 
 def print_ranked_nodes(title, nodes):
     """Print a compact ranking list with page, score, and content preview."""
+    print(f"{Fore.LIGHTCYAN_EX}{title}:{Style.RESET_ALL}")
+
     if not nodes:
+        print(f"{Fore.YELLOW}No results returned.{Style.RESET_ALL}\n")
         return
 
-    print(f"{Fore.LIGHTCYAN_EX}{title}:{Style.RESET_ALL}")
     for i, node_with_score in enumerate(nodes, start=1):
         page, score_text, preview = format_debug_node(node_with_score)
         source_info = (

@@ -17,7 +17,7 @@ from util.index_utils import load_persisted_nodes
 
 
 BM25_INDEX_FILE_NAME = "bm25_index.json"
-BM25_INDEX_VERSION = "bm25-finnish-snowball-v1"
+BM25_INDEX_VERSION = "bm25-finnish-list-intents-v1"
 FINNISH_STEMMER = SnowballStemmer("finnish")
 
 
@@ -94,9 +94,10 @@ def build_hybrid_retriever(index, persist_dir, retrieval_top_k, llm_context_top_
     return DebugQueryFusionRetriever(
         retrievers=[vector_retriever, keyword_retriever],
         mode=FUSION_MODES.RECIPROCAL_RANK,
-        # The child retrievers search broadly, then fusion returns only the
-        # final chunks that should go into the LLM context.
-        similarity_top_k=llm_context_top_k,
+        # Let fusion see the broader candidate pool. DebugQueryFusionRetriever
+        # trims to llm_context_top_k after any final intent-aware reranking.
+        similarity_top_k=retrieval_top_k,
+        final_top_k=llm_context_top_k,
         # Keep this at one query to avoid extra LLM calls for query rewriting.
         num_queries=1,
         use_async=False,
@@ -126,17 +127,38 @@ class TrackingRetriever(BaseRetriever):
 class DebugQueryFusionRetriever(QueryFusionRetriever):
     """Query fusion retriever that stores the final fused ranking for debugging."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, final_top_k=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.final_top_k = final_top_k
         self.last_fused_results = []
         self.last_fused_debug_results = []
 
     def _retrieve(self, query_bundle: QueryBundle):
         """Delegate hybrid retrieval and remember the merged ranked results."""
-        self.last_fused_results = super()._retrieve(query_bundle)
+        fused_results = super()._retrieve(query_bundle)
+        reranked_results = rerank_list_section_matches(
+            query_bundle.query_str,
+            fused_results,
+        )
+        final_top_k = self.final_top_k or len(reranked_results)
+        self.last_fused_results = reranked_results[:final_top_k]
         self.last_fused_debug_results = snapshot_results(self.last_fused_results)
 
         return self.last_fused_results
+
+
+def rerank_list_section_matches(query, nodes):
+    """Prefer exact front-matter list pages for list-style queries."""
+    query_tokens = tokenize(query)
+
+    return sorted(
+        nodes,
+        key=lambda node: (
+            get_list_section_boost(query_tokens, node.node),
+            node.score or 0.0,
+        ),
+        reverse=True,
+    )
 
 
 def snapshot_results(nodes):
@@ -264,7 +286,12 @@ class BM25Retriever(BaseRetriever):
             self.doc_tokens,
             self.doc_lengths,
         ):
-            score = self._score(query_tokens, doc_tokens, doc_length)
+            score = self._score(
+                query_tokens=query_tokens,
+                doc_tokens=doc_tokens,
+                doc_length=doc_length,
+                node=node,
+            )
 
             if score > 0:
                 scored_nodes.append(
@@ -280,7 +307,7 @@ class BM25Retriever(BaseRetriever):
             reverse=True,
         )[: self.similarity_top_k]
 
-    def _score(self, query_tokens, doc_tokens, doc_length):
+    def _score(self, query_tokens, doc_tokens, doc_length, node):
         """Calculate the BM25 relevance score for one node."""
         term_frequencies = Counter(doc_tokens)
         score = 0.0
@@ -301,6 +328,8 @@ class BM25Retriever(BaseRetriever):
             )
             score += idf * (term_frequency * (self.k1 + 1)) / denominator
 
+        score += get_list_section_boost(query_tokens, node)
+
         return score
 
 
@@ -315,7 +344,7 @@ def tokenize(text):
         normalized_token = normalize_token(token)
 
         if normalized_token and normalized_token not in STOPWORDS:
-            tokens.append(normalized_token)
+            tokens.extend(expand_token(normalized_token))
 
     return tokens
 
@@ -323,6 +352,49 @@ def tokenize(text):
 def normalize_token(token):
     """Stem Finnish tokens with Snowball instead of manual suffix stripping."""
     return FINNISH_STEMMER.stem(token)
+
+
+def expand_token(token):
+    """Add domain synonyms that stemming cannot discover on its own."""
+    expanded_tokens = [token]
+
+    for synonym in RETRIEVAL_SYNONYMS.get(token, []):
+        if synonym not in expanded_tokens:
+            expanded_tokens.append(synonym)
+
+    return expanded_tokens
+
+
+def get_list_section_boost(query_tokens, node):
+    """Boost front-matter list pages for contents, figures, and tables."""
+    section_headings = get_list_section_headings(query_tokens)
+
+    if not section_headings:
+        return 0.0
+
+    content = " ".join(node.get_content().lower().split())
+
+    for heading in section_headings:
+        if content.startswith(heading):
+            return 6.0
+
+        # List headings often appear after the main contents list has continued
+        # across pages, as with "Kuvat" and "Taulukot" in this PDF.
+        if re.search(rf"(^|\s){re.escape(heading)}\s+", content):
+            return 4.0
+
+    return 0.0
+
+
+def get_list_section_headings(query_tokens):
+    """Map query intent tokens to front-matter headings in the document."""
+    headings = []
+
+    for intent_token, section_headings in LIST_SECTION_INTENTS.items():
+        if intent_token in query_tokens:
+            headings.extend(section_headings)
+
+    return headings
 
 
 STOPWORDS = {
@@ -343,6 +415,29 @@ STOPWORDS = {
     "kuin",
     "myös",
     "myos",
+    "näyt",
+    "näytä",
+    "sais",
+    "saisinko",
     "sanottiin",
     "sanottii",
+}
+
+RETRIEVAL_SYNONYMS = {
+    "sisällysluettelo": ["sisältö"],
+    "sisältö": ["sisällysluettelo"],
+    "sisälö": ["sisältö", "sisällysluettelo"],
+    "kuvaluettelo": ["kuva"],
+    "kuva": ["kuvaluettelo"],
+    "taulukkoluettelo": ["tauluko"],
+    "tauluko": ["taulukkoluettelo"],
+}
+
+LIST_SECTION_INTENTS = {
+    "sisällysluettelo": ["sisältö"],
+    "sisältö": ["sisältö"],
+    "kuva": ["kuvat"],
+    "kuvaluettelo": ["kuvat"],
+    "tauluko": ["taulukot"],
+    "taulukkoluettelo": ["taulukot"],
 }
