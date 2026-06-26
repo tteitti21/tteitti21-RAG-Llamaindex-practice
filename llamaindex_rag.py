@@ -33,6 +33,7 @@ init(autoreset=True)  # Automatically resets style after every print
 
 CHUNK_SIZE = get_env_int(ENV_VALUES, "CHUNK_SIZE", 1000)
 CHUNK_OVERLAP = get_env_int(ENV_VALUES, "CHUNK_OVERLAP", 200)
+SIMILARITY_TOP_K = get_env_int(ENV_VALUES, "SIMILARITY_TOP_K", 10)
 
 QA_PROMPT = PromptTemplate(
     """
@@ -87,7 +88,7 @@ def main():
     )
 
     query_engine = index.as_query_engine(
-        similarity_top_k=5
+        similarity_top_k=SIMILARITY_TOP_K
     )
     query_engine.update_prompts(
         {

@@ -47,3 +47,15 @@ Directory where the generated LlamaIndex storage files are saved. Keeping this p
 `DEBUG`
 
 Set to `true` to print source nodes, similarity scores, metadata, and content snippets after each query. Keep it as `false` for normal answer-only output.
+
+`CHUNK_SIZE`
+
+Token target for each indexed text chunk. Changing this requires rebuilding the persisted index.
+
+`CHUNK_OVERLAP`
+
+Token overlap between neighboring chunks. Changing this requires rebuilding the persisted index.
+
+`SIMILARITY_TOP_K`
+
+Number of retrieved source chunks to send into answer generation. Raising this can help when the right page is ranked slightly below the first few matches.
