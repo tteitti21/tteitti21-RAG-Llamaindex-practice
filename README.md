@@ -10,6 +10,7 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 - Reads a PDF from the `docs/` folder.
 - Uses OpenAI for the LLM and embedding model.
 - Builds a LlamaIndex `VectorStoreIndex`.
+- Uses hybrid retrieval with vector search and local BM25-style keyword search.
 - Saves the index to a local persistence directory.
 - Reuses the saved index on later runs.
 - Optionally prints source chunks, metadata, and similarity scores for debugging.
@@ -23,6 +24,9 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 +-- util/
 |   +-- debug_utils.py
 |   +-- env_utils.py
+|   +-- index_utils.py
+|   +-- pdf_utils.py
+|   +-- retrieval_utils.py
 +-- .env.example
 +-- .gitignore
 +-- llamaindex_rag.py
@@ -58,4 +62,4 @@ Token overlap between neighboring chunks. Changing this requires rebuilding the 
 
 `SIMILARITY_TOP_K`
 
-Number of retrieved source chunks to send into answer generation. Raising this can help when the right page is ranked slightly below the first few matches.
+Number of fused source chunks to send into answer generation. Raising this can help when the right page is ranked slightly below the first few matches.

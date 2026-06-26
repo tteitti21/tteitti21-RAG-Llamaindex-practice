@@ -18,6 +18,7 @@ from util.env_utils import (
     load_env_file,
 )
 from util.index_utils import load_or_create_index
+from util.retrieval_utils import build_hybrid_query_engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -87,13 +88,11 @@ def main():
         persist_dir=PERSIST_DIR,
     )
 
-    query_engine = index.as_query_engine(
-        similarity_top_k=SIMILARITY_TOP_K
-    )
-    query_engine.update_prompts(
-        {
-            "response_synthesizer:text_qa_template": QA_PROMPT
-        }
+    query_engine = build_hybrid_query_engine(
+        index=index,
+        pdf_path=PDF_PATH,
+        similarity_top_k=SIMILARITY_TOP_K,
+        qa_prompt=QA_PROMPT,
     )
 
     while True:
