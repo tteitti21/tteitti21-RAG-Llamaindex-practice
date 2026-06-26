@@ -10,7 +10,13 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from colorama import Fore, init
 from util.debug_utils import print_debug_sources
-from util.env_utils import get_env_bool, get_env_path, get_env_value, load_env_file
+from util.env_utils import (
+    get_env_bool,
+    get_env_int,
+    get_env_path,
+    get_env_value,
+    load_env_file,
+)
 from util.index_utils import load_or_create_index
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,8 +31,8 @@ if OPENAI_API_KEY:
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 init(autoreset=True)  # Automatically resets style after every print
 
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+CHUNK_SIZE = get_env_int(ENV_VALUES, "CHUNK_SIZE", 1000)
+CHUNK_OVERLAP = get_env_int(ENV_VALUES, "CHUNK_OVERLAP", 200)
 
 QA_PROMPT = PromptTemplate(
     """

@@ -40,3 +40,12 @@ def get_env_bool(env_values, key, default=False):
     value = get_env_value(env_values, key, str(default))
 
     return str(value).lower() == "true"
+
+
+def get_env_int(env_values, key, default):
+    value = get_env_value(env_values, key, default)
+
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid integer in .env: {key}={value}") from exc
