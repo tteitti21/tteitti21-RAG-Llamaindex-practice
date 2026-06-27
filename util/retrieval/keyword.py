@@ -16,7 +16,7 @@ from util.retrieval.references import (
 
 
 BM25_INDEX_FILE_NAME = "bm25_index.json"
-BM25_INDEX_VERSION = "bm25-finnish-list-intents-v3"
+BM25_INDEX_VERSION = "bm25-finnish-list-intents-v4"
 FINNISH_STEMMER = SnowballStemmer("finnish")
 
 
@@ -253,18 +253,20 @@ STOPWORDS = {
     "mita",
     "joka",
     "jotka",
+    "halua",
     "haluais",
     "että",
     "etta",
+    "kaik",
+    "list",
     "listauks",
     "sekä",
     "seka",
+    "tiedosto",
     "kun",
     "kuin",
     "myös",
     "myos",
-    "näyt",
-    "näytä",
     "sais",
     "saisinko",
     "sanottiin",
@@ -272,12 +274,12 @@ STOPWORDS = {
 }
 
 RETRIEVAL_SYNONYMS = {
-    "sisällysluettelo": ["sisältö"],
-    "sisältö": ["sisällysluettelo"],
+    "sisällysluettelo": ["sisältö", "sisälö"],
+    "sisältö": ["sisällysluettelo", "sisälö"],
     "sisälö": ["sisältö", "sisällysluettelo"],
-    "kuvaluettelo": ["kuva"],
+    "kuvaluettelo": ["kuva", "kuv"],
     "kuv": ["kuva", "kuvaluettelo"],
-    "kuva": ["kuvaluettelo"],
+    "kuva": ["kuv", "kuvaluettelo"],
     "taulukkoluettelo": ["tauluko"],
     "tauluko": ["taulukkoluettelo"],
 }
@@ -285,6 +287,7 @@ RETRIEVAL_SYNONYMS = {
 LIST_SECTION_INTENTS = {
     "sisällysluettelo": ["sisältö"],
     "sisältö": ["sisältö"],
+    "sisälö": ["sisältö"],
     "kuv": ["kuvat"],
     "kuva": ["kuvat"],
     "kuvaluettelo": ["kuvat"],
