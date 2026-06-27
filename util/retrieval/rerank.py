@@ -1,4 +1,8 @@
-from util.retrieval.keyword import get_list_section_boost, tokenize
+from util.retrieval.keyword import (
+    get_list_section_boost,
+    get_numbered_reference_boost,
+    tokenize,
+)
 
 
 def rerank_list_section_matches(query, nodes):
@@ -8,6 +12,7 @@ def rerank_list_section_matches(query, nodes):
     return sorted(
         nodes,
         key=lambda node: (
+            get_numbered_reference_boost(query_tokens, node.node),
             get_list_section_boost(query_tokens, node.node),
             node.score or 0.0,
         ),
