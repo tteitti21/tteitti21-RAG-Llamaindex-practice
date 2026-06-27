@@ -6,7 +6,7 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
 from util.retrieval.keyword import build_keyword_retriever
-from util.retrieval.rerank import rerank_list_section_matches
+from util.retrieval.rerank import get_rerank_debug, rerank_list_section_matches
 from util.retrieval.vector import build_vector_retriever
 
 
@@ -133,23 +133,29 @@ class DebugQueryFusionRetriever(QueryFusionRetriever):
         )
         final_top_k = self.final_top_k or len(reranked_results)
         self.last_fused_results = reranked_results[:final_top_k]
-        self.last_fused_debug_results = snapshot_results(self.last_fused_results)
+        self.last_fused_debug_results = snapshot_results(
+            self.last_fused_results,
+            query=query_bundle.query_str,
+        )
 
         return self.last_fused_results
 
 
-def snapshot_results(nodes):
+def snapshot_results(nodes, query=None):
     """Store result details before fusion mutates node scores in place."""
     snapshots = []
 
     for node_with_score in nodes:
         metadata = node_with_score.metadata
-        snapshots.append(
-            {
-                "page": metadata.get("page_label") or metadata.get("page") or "unknown",
-                "score": node_with_score.score,
-                "preview": " ".join(node_with_score.node.get_content().split())[:180],
-            }
-        )
+        snapshot = {
+            "page": metadata.get("page_label") or metadata.get("page") or "unknown",
+            "score": node_with_score.score,
+            "preview": " ".join(node_with_score.node.get_content().split())[:180],
+        }
+
+        if query:
+            snapshot.update(get_rerank_debug(query, node_with_score.node))
+
+        snapshots.append(snapshot)
 
     return snapshots

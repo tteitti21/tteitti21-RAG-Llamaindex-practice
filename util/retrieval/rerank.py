@@ -6,7 +6,7 @@ from util.retrieval.keyword import (
 
 
 def rerank_list_section_matches(query, nodes):
-    """Prefer exact front-matter list pages for list-style queries."""
+    """Prefer exact numbered references and front-matter list pages."""
     query_tokens = tokenize(query)
 
     return sorted(
@@ -18,3 +18,19 @@ def rerank_list_section_matches(query, nodes):
         ),
         reverse=True,
     )
+
+
+def get_rerank_debug(query, node):
+    """Return rerank boost details for debug output."""
+    query_tokens = tokenize(query)
+
+    return {
+        "numbered_reference_boost": get_numbered_reference_boost(
+            query_tokens,
+            node,
+        ),
+        "list_section_boost": get_list_section_boost(
+            query_tokens,
+            node,
+        ),
+    }
