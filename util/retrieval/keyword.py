@@ -1,96 +1,115 @@
 import json
-import math
 import os
 import re
-from collections import Counter
 
+import Stemmer
+import bm25s
 from llama_index.core import QueryBundle
 from llama_index.core.base.base_retriever import BaseRetriever
-from llama_index.core.schema import NodeWithScore
-from nltk.stem.snowball import SnowballStemmer
+from llama_index.retrievers.bm25 import BM25Retriever as LlamaBM25Retriever
 from util.index_utils import load_persisted_nodes
-from util.retrieval.references import (
-    get_numbered_reference_boost,
-    has_numbered_reference,
-)
+from util.retrieval.references import has_numbered_reference
 
 
-BM25_INDEX_FILE_NAME = "bm25_index.json"
-BM25_INDEX_VERSION = "bm25-finnish-list-intents-v4"
-FINNISH_STEMMER = SnowballStemmer("finnish")
+BM25_INDEX_DIR_NAME = "llama_bm25"
+BM25_METADATA_FILE_NAME = "metadata.json"
+BM25_INDEX_VERSION = "llama-bm25-finnish-v1"
+BM25_TOKEN_PATTERN = r"(?u)\b\w+\b"
 
 
 def build_keyword_retriever(persist_dir, similarity_top_k):
-    """Create a local BM25 retriever from the persisted vector index nodes."""
+    """Create a LlamaIndex BM25 retriever from persisted vector index nodes."""
     # Loading persisted nodes keeps BM25 and vector retrieval anchored to the
     # same chunk boundaries and metadata.
     nodes = load_persisted_nodes(persist_dir)
-    bm25_index = load_or_create_bm25_index(persist_dir, nodes)
 
-    return BM25Retriever(
-        nodes=nodes,
-        similarity_top_k=similarity_top_k,
-        bm25_index=bm25_index,
+    return QueryExpansionRetriever(
+        retriever=load_or_create_bm25_retriever(
+            persist_dir=persist_dir,
+            nodes=nodes,
+            similarity_top_k=similarity_top_k,
+        )
     )
 
 
-def load_or_create_bm25_index(persist_dir, nodes):
-    """Load cached BM25 token statistics, or build and persist them."""
-    bm25_index_path = get_bm25_index_path(persist_dir)
+def load_or_create_bm25_retriever(persist_dir, nodes, similarity_top_k):
+    """Load a persisted LlamaIndex BM25 retriever, or build and persist one."""
+    bm25_index_dir = get_bm25_index_dir(persist_dir)
+    bm25_metadata_path = get_bm25_metadata_path(persist_dir)
 
-    if os.path.exists(bm25_index_path):
-        with open(bm25_index_path, "r", encoding="utf-8") as f:
-            bm25_index = json.load(f)
+    if os.path.exists(bm25_metadata_path):
+        with open(bm25_metadata_path, "r", encoding="utf-8") as f:
+            bm25_metadata = json.load(f)
 
-        if is_current_bm25_index(bm25_index, nodes):
-            return bm25_index
+        if is_current_bm25_index(bm25_metadata, nodes):
+            return load_persisted_bm25_retriever(
+                bm25_index_dir=bm25_index_dir,
+                similarity_top_k=similarity_top_k,
+            )
 
-    # BM25 statistics are deterministic from nodes + tokenizer, so they can be
-    # cached safely and rebuilt only when the nodes or BM25 version change.
-    bm25_index = build_bm25_index(nodes)
+    retriever = LlamaBM25Retriever.from_defaults(
+        nodes=nodes,
+        stemmer=get_finnish_stemmer(),
+        language=list(BM25_STOPWORDS),
+        similarity_top_k=similarity_top_k,
+        token_pattern=BM25_TOKEN_PATTERN,
+    )
 
-    with open(bm25_index_path, "w", encoding="utf-8") as f:
+    os.makedirs(bm25_index_dir, exist_ok=True)
+    # Persist through bm25s directly so we can restore with the same Finnish
+    # stemmer and single-character token pattern that LlamaIndex does not store.
+    retriever.bm25.save(
+        bm25_index_dir,
+        corpus=retriever.corpus,
+        show_progress=False,
+    )
+
+    with open(bm25_metadata_path, "w", encoding="utf-8") as f:
         json.dump(
-            bm25_index,
+            build_bm25_metadata(nodes),
             f,
             ensure_ascii=False,
             indent=2,
         )
 
-    return bm25_index
+    return retriever
 
 
-def is_current_bm25_index(bm25_index, nodes):
-    """Check that cached BM25 statistics match the current node cache."""
-    # Node hashes catch content or metadata changes even if the node count stays
-    # the same.
-    return (
-        bm25_index.get("version") == BM25_INDEX_VERSION
-        and bm25_index.get("node_count") == len(nodes)
-        and bm25_index.get("node_hashes") == get_node_hashes(nodes)
+def load_persisted_bm25_retriever(bm25_index_dir, similarity_top_k):
+    """Restore a LlamaIndex BM25 retriever with project tokenizer settings."""
+    bm25 = bm25s.BM25.load(
+        bm25_index_dir,
+        load_corpus=True,
+    )
+
+    return LlamaBM25Retriever(
+        existing_bm25=bm25,
+        stemmer=get_finnish_stemmer(),
+        language=list(BM25_STOPWORDS),
+        similarity_top_k=similarity_top_k,
+        token_pattern=BM25_TOKEN_PATTERN,
     )
 
 
-def build_bm25_index(nodes):
-    """Build serializable BM25 token statistics from persisted nodes."""
-    # doc_tokens is intentionally stored, not recomputed at startup, because
-    # tokenization becomes expensive as the corpus grows.
-    doc_tokens = [tokenize(node.get_content()) for node in nodes]
-    doc_lengths = [len(tokens) for tokens in doc_tokens]
-    avg_doc_length = sum(doc_lengths) / max(len(doc_lengths), 1)
-    doc_frequencies = Counter()
+def is_current_bm25_index(bm25_metadata, nodes):
+    """Check that cached BM25 data matches the current node cache."""
+    # Node hashes catch content or metadata changes even if the node count stays
+    # the same.
+    return (
+        bm25_metadata.get("version") == BM25_INDEX_VERSION
+        and bm25_metadata.get("node_count") == len(nodes)
+        and bm25_metadata.get("node_hashes") == get_node_hashes(nodes)
+        and bm25_metadata.get("token_pattern") == BM25_TOKEN_PATTERN
+    )
 
-    for tokens in doc_tokens:
-        doc_frequencies.update(set(tokens))
 
+def build_bm25_metadata(nodes):
+    """Build metadata used to validate the persisted LlamaIndex BM25 index."""
     return {
         "version": BM25_INDEX_VERSION,
         "node_count": len(nodes),
         "node_hashes": get_node_hashes(nodes),
-        "doc_tokens": doc_tokens,
-        "doc_lengths": doc_lengths,
-        "avg_doc_length": avg_doc_length,
-        "doc_frequencies": dict(doc_frequencies),
+        "token_pattern": BM25_TOKEN_PATTERN,
     }
 
 
@@ -98,82 +117,58 @@ def get_node_hashes(nodes):
     return [node.hash for node in nodes]
 
 
-def get_bm25_index_path(persist_dir):
-    return os.path.join(persist_dir, BM25_INDEX_FILE_NAME)
+def get_bm25_index_dir(persist_dir):
+    return os.path.join(persist_dir, BM25_INDEX_DIR_NAME)
 
 
-class BM25Retriever(BaseRetriever):
-    """Small local BM25 retriever used as the keyword side of hybrid search."""
+def get_bm25_metadata_path(persist_dir):
+    return os.path.join(get_bm25_index_dir(persist_dir), BM25_METADATA_FILE_NAME)
 
-    def __init__(self, nodes, similarity_top_k, bm25_index, k1=1.5, b=0.75):
-        """Pre-tokenize nodes and collect corpus statistics for BM25 scoring."""
+
+def get_finnish_stemmer():
+    return Stemmer.Stemmer("finnish")
+
+
+class QueryExpansionRetriever(BaseRetriever):
+    """Expand Finnish query terms before delegating to LlamaIndex BM25."""
+
+    def __init__(self, retriever):
         super().__init__()
-        self.nodes = nodes
-        self.similarity_top_k = similarity_top_k
-        self.k1 = k1
-        self.b = b
-        self.doc_tokens = bm25_index["doc_tokens"]
-        self.doc_lengths = bm25_index["doc_lengths"]
-        self.avg_doc_length = bm25_index["avg_doc_length"]
-        self.doc_frequencies = Counter(bm25_index["doc_frequencies"])
+        self.retriever = retriever
 
     def _retrieve(self, query_bundle: QueryBundle):
-        """Return the highest-scoring nodes for the query using BM25."""
-        # Query text is tokenized with the same rules as the stored documents.
-        query_tokens = tokenize(query_bundle.query_str)
-        scored_nodes = []
+        # LlamaIndex BM25 handles scoring and indexing; this wrapper only keeps
+        # the project-specific Finnish synonyms available for query text.
+        expanded_query = build_bm25_query(query_bundle.query_str)
+        bm25_query = expanded_query or query_bundle.query_str
 
-        for node, doc_tokens, doc_length in zip(
-            self.nodes,
-            self.doc_tokens,
-            self.doc_lengths,
-        ):
-            score = self._score(
-                query_tokens=query_tokens,
-                doc_tokens=doc_tokens,
-                doc_length=doc_length,
-                node=node,
-            )
+        return [
+            node
+            for node in self.retriever.retrieve(QueryBundle(bm25_query))
+            if (node.score or 0.0) > 0
+        ]
 
-            if score > 0:
-                scored_nodes.append(
-                    NodeWithScore(
-                        node=node,
-                        score=score,
-                    )
-                )
 
-        return sorted(
-            scored_nodes,
-            key=lambda node_with_score: node_with_score.score or 0.0,
-            reverse=True,
-        )[: self.similarity_top_k]
+def build_bm25_query(text):
+    """Expand a query with raw words that PyStemmer can safely stem once."""
+    raw_tokens = [
+        token
+        for token in re.findall(r"\w+", text.lower())
+        if token not in BM25_STOPWORDS
+    ]
+    normalized_tokens = tokenize(text)
+    expanded_tokens = []
 
-    def _score(self, query_tokens, doc_tokens, doc_length, node):
-        """Calculate the BM25 relevance score for one node."""
-        term_frequencies = Counter(doc_tokens)
-        score = 0.0
-        total_docs = len(self.nodes)
+    for token in raw_tokens:
+        if token not in expanded_tokens:
+            expanded_tokens.append(token)
 
-        for token in query_tokens:
-            term_frequency = term_frequencies[token]
+    for token in normalized_tokens:
+        for synonym in BM25_QUERY_SYNONYMS.get(token, []):
+            if synonym not in expanded_tokens:
+                expanded_tokens.append(synonym)
 
-            if term_frequency == 0:
-                continue
-
-            doc_frequency = self.doc_frequencies[token]
-            # BM25 rewards rare query terms more than common terms.
-            idf = math.log(1 + (total_docs - doc_frequency + 0.5) / (doc_frequency + 0.5))
-            # The denominator dampens repeated terms and normalizes long chunks.
-            denominator = term_frequency + self.k1 * (
-                1 - self.b + self.b * doc_length / self.avg_doc_length
-            )
-            score += idf * (term_frequency * (self.k1 + 1)) / denominator
-
-        score += get_numbered_reference_boost(query_tokens, node)
-        score += get_list_section_boost(query_tokens, node)
-
-        return score
+    return " ".join(expanded_tokens)
 
 
 def tokenize(text):
@@ -193,8 +188,8 @@ def tokenize(text):
 
 
 def normalize_token(token):
-    """Stem Finnish tokens with Snowball instead of manual suffix stripping."""
-    return FINNISH_STEMMER.stem(token)
+    """Stem Finnish tokens with the same PyStemmer family used by BM25."""
+    return get_finnish_stemmer().stemWord(token)
 
 
 def expand_token(token):
@@ -273,6 +268,25 @@ STOPWORDS = {
     "sanottii",
 }
 
+BM25_STOPWORDS = STOPWORDS | {
+    "että",
+    "haluan",
+    "haluaisin",
+    "kaikista",
+    "kaikki",
+    "listaa",
+    "listauksen",
+    "mitä",
+    "myös",
+    "näiden",
+    "näistä",
+    "saisinko",
+    "sekä",
+    "tiedosto",
+    "tiedoston",
+    "tiedostosta",
+}
+
 RETRIEVAL_SYNONYMS = {
     "sisällysluettelo": ["sisältö", "sisälö"],
     "sisältö": ["sisällysluettelo", "sisälö"],
@@ -282,6 +296,17 @@ RETRIEVAL_SYNONYMS = {
     "kuva": ["kuv", "kuvaluettelo"],
     "taulukkoluettelo": ["tauluko"],
     "tauluko": ["taulukkoluettelo"],
+}
+
+BM25_QUERY_SYNONYMS = {
+    "sisällysluettelo": ["sisältö", "sisällöstä"],
+    "sisältö": ["sisällysluettelo", "sisällöstä"],
+    "sisälö": ["sisältö", "sisällysluettelo"],
+    "kuvaluettelo": ["kuva", "kuvat", "kuvista"],
+    "kuv": ["kuva", "kuvat", "kuvista", "kuvaluettelo"],
+    "kuva": ["kuvat", "kuvista", "kuvaluettelo"],
+    "taulukkoluettelo": ["taulukko", "taulukot"],
+    "tauluko": ["taulukko", "taulukot", "taulukkoluettelo"],
 }
 
 LIST_SECTION_INTENTS = {
