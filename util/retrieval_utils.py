@@ -7,7 +7,7 @@ from collections import Counter
 from llama_index.core import QueryBundle
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.chat_engine import CondensePlusContextChatEngine
-from llama_index.core.memory import ChatMemoryBuffer
+from llama_index.core.memory import Memory
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
@@ -49,6 +49,7 @@ def build_hybrid_chat_engine(
     persist_dir,
     retrieval_top_k,
     llm_context_top_k,
+    chat_memory_token_limit,
     context_prompt,
     condense_prompt=None,
 ):
@@ -64,7 +65,7 @@ def build_hybrid_chat_engine(
 
     return CondensePlusContextChatEngine.from_defaults(
         retriever=hybrid_retriever,
-        memory=ChatMemoryBuffer.from_defaults(),
+        memory=Memory.from_defaults(token_limit=chat_memory_token_limit),
         context_prompt=context_prompt,
         condense_prompt=condense_prompt,
         verbose=False,

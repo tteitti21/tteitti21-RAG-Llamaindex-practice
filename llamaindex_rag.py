@@ -40,6 +40,7 @@ RETRIEVAL_TOP_K = get_env_int(
     get_env_int(ENV_VALUES, "SIMILARITY_TOP_K", 10),
 )
 LLM_CONTEXT_TOP_K = get_env_int(ENV_VALUES, "LLM_CONTEXT_TOP_K", 4)
+CHAT_MEMORY_TOKEN_LIMIT = get_env_int(ENV_VALUES, "CHAT_MEMORY_TOKEN_LIMIT", 8000)
 LLM_MODEL = "gpt-4.1-mini"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
@@ -125,6 +126,7 @@ def main():
         persist_dir=PERSIST_DIR,
         retrieval_top_k=RETRIEVAL_TOP_K,
         llm_context_top_k=LLM_CONTEXT_TOP_K,
+        chat_memory_token_limit=CHAT_MEMORY_TOKEN_LIMIT,
         context_prompt=CONTEXT_PROMPT,
         condense_prompt=CONDENSE_PROMPT,
     )

@@ -68,3 +68,7 @@ Number of candidate chunks each search method retrieves before fusion. Raising t
 `LLM_CONTEXT_TOP_K`
 
 Number of final fused chunks to send into answer generation.
+
+`CHAT_MEMORY_TOKEN_LIMIT`
+
+Maximum token budget for chat history memory during one terminal session. Lower values make old turns drop out sooner, while higher values let longer conversations influence follow-up questions.
