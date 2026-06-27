@@ -26,11 +26,13 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 |   +-- debug_utils.py
 |   +-- env_utils.py
 |   +-- index_utils.py
-|   +-- keyword_retrieval_utils.py
 |   +-- pdf_utils.py
-|   +-- rerank_utils.py
-|   +-- retrieval_utils.py
-|   +-- vector_retrieval_utils.py
+|   +-- retrieval/
+|       +-- __init__.py
+|       +-- hybrid.py
+|       +-- keyword.py
+|       +-- rerank.py
+|       +-- vector.py
 +-- .env.example
 +-- .gitignore
 +-- llamaindex_rag.py

@@ -5,9 +5,9 @@ from llama_index.core.memory import Memory
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
-from util.keyword_retrieval_utils import build_keyword_retriever
-from util.rerank_utils import rerank_list_section_matches
-from util.vector_retrieval_utils import build_vector_retriever
+from util.retrieval.keyword import build_keyword_retriever
+from util.retrieval.rerank import rerank_list_section_matches
+from util.retrieval.vector import build_vector_retriever
 
 
 def build_hybrid_query_engine(

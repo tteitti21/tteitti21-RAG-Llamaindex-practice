@@ -1,4 +1,4 @@
-from util.keyword_retrieval_utils import get_list_section_boost, tokenize
+from util.retrieval.keyword import get_list_section_boost, tokenize
 
 
 def rerank_list_section_matches(query, nodes):

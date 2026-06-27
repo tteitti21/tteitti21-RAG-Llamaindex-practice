@@ -18,7 +18,7 @@ from util.env_utils import (
     load_env_file,
 )
 from util.index_utils import load_or_create_index
-from util.retrieval_utils import build_hybrid_chat_engine
+from util.retrieval.hybrid import build_hybrid_chat_engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
