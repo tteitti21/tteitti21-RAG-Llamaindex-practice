@@ -9,6 +9,10 @@ from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.schema import NodeWithScore
 from nltk.stem.snowball import SnowballStemmer
 from util.index_utils import load_persisted_nodes
+from util.retrieval.references import (
+    get_numbered_reference_boost,
+    has_numbered_reference,
+)
 
 
 BM25_INDEX_FILE_NAME = "bm25_index.json"
@@ -239,52 +243,6 @@ def get_list_section_headings(query_tokens):
     return headings
 
 
-def get_numbered_reference_boost(query_tokens, node):
-    """Boost chunks that contain a specific figure or table reference."""
-    references = get_numbered_references(query_tokens)
-
-    if not references:
-        return 0.0
-
-    content = " ".join(node.get_content().lower().split())
-    boost = 0.0
-
-    for label, number in references:
-        match_count = len(
-            re.findall(rf"(^|\W){label}\s+{number}(\W|$)", content)
-        )
-
-        if match_count:
-            # One mention may be a front-matter list entry. A repeated mention
-            # often means the chunk contains the actual nearby explanation.
-            boost = max(boost, min(match_count, 2) * 7.0)
-
-    return boost
-
-
-def has_numbered_reference(query_tokens):
-    """Return True when the query asks about a numbered figure or table."""
-    return bool(get_numbered_references(query_tokens))
-
-
-def get_numbered_references(query_tokens):
-    """Find numbered figure/table references in normalized query tokens."""
-    numbers = [token for token in query_tokens if token.isdigit()]
-    references = []
-
-    if not numbers:
-        return references
-
-    for number in numbers:
-        if any(token in IMAGE_REFERENCE_TOKENS for token in query_tokens):
-            references.append(("kuva", number))
-
-        if any(token in TABLE_REFERENCE_TOKENS for token in query_tokens):
-            references.append(("taulukko", number))
-
-    return references
-
-
 STOPWORDS = {
     "ja",
     "tai",
@@ -332,17 +290,4 @@ LIST_SECTION_INTENTS = {
     "kuvaluettelo": ["kuvat"],
     "tauluko": ["taulukot"],
     "taulukkoluettelo": ["taulukot"],
-}
-
-IMAGE_REFERENCE_TOKENS = {
-    "kuv",
-    "kuva",
-    "kuvaluettelo",
-}
-
-TABLE_REFERENCE_TOKENS = {
-    "tauluk",
-    "tauluko",
-    "taulukko",
-    "taulukkoluettelo",
 }

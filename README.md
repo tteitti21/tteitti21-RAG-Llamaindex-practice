@@ -31,6 +31,7 @@ The app loads a PDF document, creates a vector index from it, persists that inde
 |       +-- __init__.py
 |       +-- hybrid.py
 |       +-- keyword.py
+|       +-- references.py
 |       +-- rerank.py
 |       +-- vector.py
 +-- .env.example

@@ -1,7 +1,10 @@
 from util.retrieval.keyword import (
     get_list_section_boost,
-    get_numbered_reference_boost,
     tokenize,
+)
+from util.retrieval.references import (
+    get_numbered_reference_boost,
+    get_numbered_reference_debug,
 )
 
 
@@ -25,10 +28,7 @@ def get_rerank_debug(query, node):
     query_tokens = tokenize(query)
 
     return {
-        "numbered_reference_boost": get_numbered_reference_boost(
-            query_tokens,
-            node,
-        ),
+        **get_numbered_reference_debug(query_tokens, node),
         "list_section_boost": get_list_section_boost(
             query_tokens,
             node,

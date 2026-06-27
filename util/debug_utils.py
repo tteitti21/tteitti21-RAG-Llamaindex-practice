@@ -110,9 +110,30 @@ def format_rerank_boosts(node):
         boost = node.get(key, 0.0)
 
         if boost:
-            boost_parts.append(f"{label} +{format_score(boost)}")
+            boost_parts.append(
+                format_rerank_boost(
+                    label,
+                    boost,
+                    node,
+                )
+            )
 
     if not boost_parts:
         return ""
 
     return f"{Fore.GREEN}Rerank{Style.RESET_ALL} {', '.join(boost_parts)} | "
+
+
+def format_rerank_boost(label, boost, node):
+    """Render one rerank boost with optional match-type details."""
+    boost_text = f"{label} +{format_score(boost)}"
+
+    if label != "Numbered ref":
+        return boost_text
+
+    match_types = node.get("numbered_reference_match_types", [])
+
+    if not match_types:
+        return boost_text
+
+    return f"{boost_text} ({', '.join(match_types)})"
