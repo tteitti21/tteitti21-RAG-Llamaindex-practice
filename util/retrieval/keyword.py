@@ -8,7 +8,6 @@ from llama_index.core import QueryBundle
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.retrievers.bm25 import BM25Retriever as LlamaBM25Retriever
 from util.index_utils import load_persisted_nodes
-from util.retrieval.references import has_numbered_reference
 
 
 BM25_INDEX_DIR_NAME = "llama_bm25"
@@ -137,8 +136,17 @@ class QueryExpansionRetriever(BaseRetriever):
         self.retriever = retriever
 
     def _retrieve(self, query_bundle: QueryBundle):
-        # LlamaIndex BM25 handles scoring and indexing; this wrapper only keeps
-        # the project-specific Finnish synonyms available for query text.
+        # Flow:
+        # 1. Keep LlamaIndex BM25 responsible for indexing and scoring.
+        # 2. Rewrite only the query text before BM25 sees it.
+        # 3. Use raw Finnish word forms in the rewritten query because the
+        #    package retriever will apply PyStemmer itself.
+        #
+        # Reason:
+        # LlamaIndex BM25 does not know project-specific equivalences such as
+        # "sisällysluettelo" ~= "sisältö" or "kuvista" ~= "kuvaluettelo".
+        # Expanding the query lets the package BM25 match those document words
+        # without returning to the earlier custom BM25 scoring implementation.
         expanded_query = build_bm25_query(query_bundle.query_str)
         bm25_query = expanded_query or query_bundle.query_str
 
@@ -151,6 +159,11 @@ class QueryExpansionRetriever(BaseRetriever):
 
 def build_bm25_query(text):
     """Expand a query with raw words that PyStemmer can safely stem once."""
+    # This differs from tokenize(), which returns normalized/stemmed tokens for
+    # local intent detection and reranking. BM25_QUERY_SYNONYMS intentionally
+    # returns raw words such as "taulukko" and "taulukot"; if we sent an already
+    # stemmed token like "tauluko" into LlamaIndex BM25, PyStemmer could stem it
+    # again and make matching worse.
     raw_tokens = [
         token
         for token in re.findall(r"\w+", text.lower())
@@ -164,6 +177,7 @@ def build_bm25_query(text):
             expanded_tokens.append(token)
 
     for token in normalized_tokens:
+        # The default [] means "this token has no extra synonyms".
         for synonym in BM25_QUERY_SYNONYMS.get(token, []):
             if synonym not in expanded_tokens:
                 expanded_tokens.append(synonym)
@@ -201,41 +215,6 @@ def expand_token(token):
             expanded_tokens.append(synonym)
 
     return expanded_tokens
-
-
-def get_list_section_boost(query_tokens, node):
-    """Boost front-matter list pages for contents, figures, and tables."""
-    section_headings = get_list_section_headings(query_tokens)
-
-    if not section_headings:
-        return 0.0
-
-    content = " ".join(node.get_content().lower().split())
-
-    for heading in section_headings:
-        if content.startswith(heading):
-            return 6.0
-
-        # List headings often appear after the main contents list has continued
-        # across pages, as with "Kuvat" and "Taulukot" in this PDF.
-        if re.search(rf"(^|\s){re.escape(heading)}\s+", content):
-            return 4.0
-
-    return 0.0
-
-
-def get_list_section_headings(query_tokens):
-    """Map query intent tokens to front-matter headings in the document."""
-    if has_numbered_reference(query_tokens):
-        return []
-
-    headings = []
-
-    for intent_token, section_headings in LIST_SECTION_INTENTS.items():
-        if intent_token in query_tokens:
-            headings.extend(section_headings)
-
-    return headings
 
 
 STOPWORDS = {
@@ -286,6 +265,12 @@ BM25_STOPWORDS = STOPWORDS | {
     "tiedoston",
     "tiedostosta",
 }
+"""Stopwords passed to LlamaIndex BM25.
+
+STOPWORDS contains normalized/stemmed terms used by this module's local
+tokenize() helper. BM25_STOPWORDS extends it with raw Finnish word forms because
+bm25s removes stopwords before it applies PyStemmer.
+"""
 
 RETRIEVAL_SYNONYMS = {
     "sisällysluettelo": ["sisältö", "sisälö"],
@@ -297,6 +282,12 @@ RETRIEVAL_SYNONYMS = {
     "taulukkoluettelo": ["tauluko"],
     "tauluko": ["taulukkoluettelo"],
 }
+"""Normalized-token synonyms used by tokenize().
+
+Each key is a normalized Finnish token. Each value is a list of extra normalized
+tokens that should be treated as equivalent for local intent detection and
+reranking, not raw BM25 query text.
+"""
 
 BM25_QUERY_SYNONYMS = {
     "sisällysluettelo": ["sisältö", "sisällöstä"],
@@ -308,14 +299,8 @@ BM25_QUERY_SYNONYMS = {
     "taulukkoluettelo": ["taulukko", "taulukot"],
     "tauluko": ["taulukko", "taulukot", "taulukkoluettelo"],
 }
+"""Raw-word synonyms used only when expanding the query for LlamaIndex BM25.
 
-LIST_SECTION_INTENTS = {
-    "sisällysluettelo": ["sisältö"],
-    "sisältö": ["sisältö"],
-    "sisälö": ["sisältö"],
-    "kuv": ["kuvat"],
-    "kuva": ["kuvat"],
-    "kuvaluettelo": ["kuvat"],
-    "tauluko": ["taulukot"],
-    "taulukkoluettelo": ["taulukot"],
-}
+Each key is a normalized token from tokenize(). Each value is a list of raw
+Finnish words to add to the BM25 query so bm25s can stem them once itself.
+"""
